@@ -4,11 +4,13 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import shell.cart.shell_cart_backend.entity.User;
 import shell.cart.shell_cart_backend.repository.UserRepository;
 
@@ -39,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authHeader =
                 request.getHeader("Authorization");
 
+        // No JWT supplied
         if (authHeader == null
                 || !authHeader.startsWith("Bearer ")) {
 
@@ -47,8 +50,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String token =
-                authHeader.substring(7);
+                authHeader.substring(7).trim();
 
+        // Empty token
+        if (token.isEmpty()) {
+
+            response.setStatus(
+                    HttpServletResponse.SC_UNAUTHORIZED
+            );
+
+            return;
+        }
+
+        // Invalid or expired JWT
         if (!jwtService.isTokenValid(token)) {
 
             response.setStatus(
@@ -58,15 +72,40 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String email =
-                jwtService.extractEmail(token);
+        String email;
 
-        User user =
-                userRepository.findByEmail(email)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "User not found"
-                                ));
+        try {
+            email = jwtService.extractEmail(token);
+        } catch (Exception e) {
+
+            response.setStatus(
+                    HttpServletResponse.SC_UNAUTHORIZED
+            );
+
+            return;
+        }
+
+        // Don't authenticate twice
+        if (SecurityContextHolder
+                .getContext()
+                .getAuthentication() != null) {
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElse(null);
+
+        // JWT is valid but user no longer exists
+        if (user == null) {
+
+            response.setStatus(
+                    HttpServletResponse.SC_UNAUTHORIZED
+            );
+
+            return;
+        }
 
         String role = user.getRole();
 
@@ -79,7 +118,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
-                        email,
+                        user.getEmail(),
                         null,
                         Collections.singletonList(
                                 new SimpleGrantedAuthority(

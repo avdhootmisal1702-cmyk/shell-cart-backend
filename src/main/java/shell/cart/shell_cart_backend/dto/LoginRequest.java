@@ -4,15 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public class UserRegistrationRequest {
-
-    @NotBlank(message = "Name is required")
-    @Size(
-            min = 2,
-            max = 100,
-            message = "Name must be between 2 and 100 characters"
-    )
-    private String name;
+public class LoginRequest {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
@@ -30,25 +22,7 @@ public class UserRegistrationRequest {
     )
     private String password;
 
-    public UserRegistrationRequest() {
-    }
-
-    public UserRegistrationRequest(
-            String name,
-            String email,
-            String password) {
-
-        this.name = name;
-        this.email = email;
-        this.password = password;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
+    public LoginRequest() {
     }
 
     public String getEmail() {

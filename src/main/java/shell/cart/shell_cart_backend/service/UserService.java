@@ -2,7 +2,9 @@ package shell.cart.shell_cart_backend.service;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import shell.cart.shell_cart_backend.entity.User;
+import shell.cart.shell_cart_backend.exception.BadRequestException;
 import shell.cart.shell_cart_backend.exception.ResourceNotFoundException;
 import shell.cart.shell_cart_backend.repository.UserRepository;
 
@@ -24,6 +26,13 @@ public class UserService {
     }
 
     public User createUser(User user) {
+
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+
+            throw new BadRequestException(
+                    "Email is already registered"
+            );
+        }
 
         String hashedPassword =
                 passwordEncoder.encode(user.getPassword());

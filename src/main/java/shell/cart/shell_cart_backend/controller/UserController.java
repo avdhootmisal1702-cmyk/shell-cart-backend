@@ -4,9 +4,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
 import shell.cart.shell_cart_backend.dto.UserRegistrationRequest;
 import shell.cart.shell_cart_backend.dto.UserResponse;
 import shell.cart.shell_cart_backend.entity.User;
@@ -41,7 +44,7 @@ public class UserController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid user data"
+                    description = "Invalid user data or email already registered"
             )
     })
     @PostMapping
@@ -116,10 +119,16 @@ public class UserController {
 
         String email = authentication.getName();
 
-        User loggedInUser = userService.getUserByEmail(email);
+        User loggedInUser =
+                userService.getUserByEmail(email);
+
+        boolean isAdmin =
+                "ADMIN".equalsIgnoreCase(
+                        loggedInUser.getRole()
+                );
 
         if (!loggedInUser.getId().equals(id)
-                && !loggedInUser.getRole().equalsIgnoreCase("ADMIN")) {
+                && !isAdmin) {
 
             throw new ForbiddenException(
                     "You are not allowed to access this user"

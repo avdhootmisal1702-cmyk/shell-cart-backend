@@ -4,12 +4,18 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import shell.cart.shell_cart_backend.dto.AddToCartRequest;
 import shell.cart.shell_cart_backend.dto.CartItemResponse;
 import shell.cart.shell_cart_backend.entity.CartItem;
+import shell.cart.shell_cart_backend.entity.Product;
+import shell.cart.shell_cart_backend.exception.ResourceNotFoundException;
+import shell.cart.shell_cart_backend.repository.ProductRepository;
 import shell.cart.shell_cart_backend.service.CartService;
 
 import java.util.List;
@@ -24,9 +30,33 @@ import java.util.List;
 public class CartController {
 
     private final CartService cartService;
+    private final ProductRepository productRepository;
 
-    public CartController(CartService cartService) {
+    public CartController(
+            CartService cartService,
+            ProductRepository productRepository) {
+
         this.cartService = cartService;
+        this.productRepository = productRepository;
+    }
+
+    private CartItemResponse createCartItemResponse(
+            CartItem cartItem) {
+
+        Product product = productRepository.findById(
+                cartItem.getProductId()
+        ).orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Product not found: "
+                                + cartItem.getProductId()
+                ));
+
+        return CartItemResponse.fromCartItem(
+                cartItem,
+                product.getName(),
+                product.getImageUrl(),
+                product.getPrice().toString()
+        );
     }
 
     @Operation(
@@ -54,23 +84,17 @@ public class CartController {
     @PostMapping
     public CartItemResponse addToCart(
             Authentication authentication,
-            @RequestParam Long productId,
-            @RequestParam
-            @Min(
-                    value = 1,
-                    message = "Quantity must be at least 1"
-            )
-            Integer quantity) {
+            @Valid @RequestBody AddToCartRequest request) {
 
         String email = authentication.getName();
 
         CartItem cartItem = cartService.addToCartByEmail(
                 email,
-                productId,
-                quantity
+                request.getProductId(),
+                request.getQuantity()
         );
 
-        return CartItemResponse.fromCartItem(cartItem);
+        return createCartItemResponse(cartItem);
     }
 
     @Operation(
@@ -95,7 +119,7 @@ public class CartController {
 
         return cartService.getCartByEmail(email)
                 .stream()
-                .map(CartItemResponse::fromCartItem)
+                .map(this::createCartItemResponse)
                 .toList();
     }
 
@@ -111,10 +135,6 @@ public class CartController {
             @ApiResponse(
                     responseCode = "400",
                     description = "Invalid quantity or insufficient stock"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication required"
             ),
             @ApiResponse(
                     responseCode = "403",
@@ -144,7 +164,7 @@ public class CartController {
                 quantity
         );
 
-        return CartItemResponse.fromCartItem(cartItem);
+        return createCartItemResponse(cartItem);
     }
 
     @Operation(
@@ -155,10 +175,6 @@ public class CartController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Cart item removed successfully"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication required"
             ),
             @ApiResponse(
                     responseCode = "403",

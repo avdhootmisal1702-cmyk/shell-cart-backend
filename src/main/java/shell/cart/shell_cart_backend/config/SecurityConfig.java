@@ -10,9 +10,17 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import shell.cart.shell_cart_backend.entity.User;
 import shell.cart.shell_cart_backend.repository.UserRepository;
 import shell.cart.shell_cart_backend.security.JwtAuthenticationFilter;
+
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
@@ -40,7 +48,10 @@ public class SecurityConfig {
 
             User user = userRepository.findByEmail(username)
                     .orElseThrow(() ->
-                            new UsernameNotFoundException("User not found"));
+                            new UsernameNotFoundException(
+                                    "User not found"
+                            )
+                    );
 
             return org.springframework.security.core.userdetails.User
                     .withUsername(user.getEmail())
@@ -51,35 +62,90 @@ public class SecurityConfig {
     }
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration configuration =
+                new CorsConfiguration();
+
+        String frontendUrl =
+                System.getenv("FRONTEND_URL");
+
+        if (frontendUrl == null || frontendUrl.isBlank()) {
+            frontendUrl = "http://localhost:5173";
+        }
+
+        configuration.setAllowedOrigins(
+                List.of(frontendUrl)
+        );
+
+        configuration.setAllowedMethods(
+                List.of(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "DELETE",
+                        "OPTIONS"
+                )
+        );
+
+        configuration.setAllowedHeaders(
+                List.of("*")
+        );
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+                "/**",
+                configuration
+        );
+
+        return source;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http) throws Exception {
 
         http
                 .csrf(csrf -> csrf.disable())
 
+                .cors(cors ->
+                        cors.configurationSource(
+                                corsConfigurationSource()
+                        )
+                )
+
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS))
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Swagger / OpenAPI
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        // Authentication
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
 
-                        // User registration
+                        .requestMatchers(
+                                "/api/auth/**"
+                        ).permitAll()
+
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/users"
                         ).permitAll()
 
-                        // Products
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/products/**"
@@ -100,7 +166,6 @@ public class SecurityConfig {
                                 "/api/products/**"
                         ).hasRole("ADMIN")
 
-                        // Users
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/users"
@@ -116,12 +181,46 @@ public class SecurityConfig {
                                 "/api/users/**"
                         ).authenticated()
 
-                        // Cart
                         .requestMatchers(
-                                "/api/cart/**"
-                        ).authenticated()
+                                HttpMethod.POST,
+                                "/api/cart"
+                        ).hasAnyRole("USER", "ADMIN")
 
-                        // Orders
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/cart"
+                        ).hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/cart/**"
+                        ).hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/cart/**"
+                        ).hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/orders/my-orders"
+                        ).hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/orders/*/status"
+                        ).hasRole("ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/orders/*"
+                        ).hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/orders/checkout"
+                        ).hasAnyRole("USER", "ADMIN")
+
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/orders"
@@ -131,14 +230,12 @@ public class SecurityConfig {
                                 "/api/orders/**"
                         ).hasAnyRole("USER", "ADMIN")
 
-                        // Everything else
                         .anyRequest().authenticated()
                 )
 
                 .addFilterBefore(
                         jwtAuthenticationFilter,
-                        org.springframework.security.web.authentication
-                                .UsernamePasswordAuthenticationFilter.class
+                        UsernamePasswordAuthenticationFilter.class
                 );
 
         return http.build();

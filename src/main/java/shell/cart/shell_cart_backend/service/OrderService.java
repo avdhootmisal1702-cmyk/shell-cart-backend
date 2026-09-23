@@ -2,6 +2,7 @@ package shell.cart.shell_cart_backend.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import shell.cart.shell_cart_backend.entity.CartItem;
 import shell.cart.shell_cart_backend.entity.Order;
 import shell.cart.shell_cart_backend.entity.OrderItem;
@@ -159,6 +160,51 @@ public class OrderService {
     public List<Order> getAllOrders() {
 
         return orderRepository.findAll();
+    }
+
+    // Used by admin to view any order
+    public Order getOrderById(Long orderId) {
+
+        return orderRepository.findById(orderId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Order not found: "
+                                        + orderId
+                        ));
+    }
+
+    // Used by admin to view items of any order
+    public List<OrderItem> getOrderItems(Long orderId) {
+
+        // Make sure the order exists
+        orderRepository.findById(orderId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Order not found: "
+                                        + orderId
+                        ));
+
+        return orderItemRepository.findByOrderId(
+                orderId
+        );
+    }
+
+    // Used by admin to update order status
+    public Order updateOrderStatus(
+            Long orderId,
+            String status) {
+
+        Order order =
+                orderRepository.findById(orderId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Order not found: "
+                                                + orderId
+                                ));
+
+        order.setStatus(status);
+
+        return orderRepository.save(order);
     }
 
     public List<Order> getUserOrdersByEmail(
